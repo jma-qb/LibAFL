@@ -40,7 +40,10 @@ use libafl_bolts::{
 #[cfg(not(any(feature = "mips", feature = "hexagon")))]
 use libafl_qemu::modules::CmpLogModule;
 pub use libafl_qemu::qemu::Qemu;
-use libafl_qemu::{Emulator, QemuExecutor, modules::edges::StdEdgeCoverageModule};
+use libafl_qemu::{
+    Emulator, QemuExecutor,
+    modules::{IfModule, SnapshotModule, edges::StdEdgeCoverageModule},
+};
 use libafl_targets::{CmpLogObserver, EDGES_MAP_DEFAULT_SIZE, MAX_EDGES_FOUND, edges_map_mut_ptr};
 use typed_builder::TypedBuilder;
 
@@ -88,6 +91,9 @@ where
     /// Disable redirection of stdout to /dev/null on unix build targets
     #[builder(default = None)]
     enable_stdout: Option<bool>,
+    /// Enable automatic use of qemu snapshot feature.
+    #[builder(default = None)]
+    use_snapshot: Option<bool>,
 }
 
 impl<H> Debug for QemuBytesCoverageSugar<'_, H>
@@ -115,6 +121,7 @@ where
             )
             .field("iterations", &self.iterations)
             .field("enable_stdout", &self.enable_stdout)
+            .field("use_snapshot", &self.use_snapshot)
             .finish()
     }
 }
@@ -234,6 +241,9 @@ where
             // A fuzzer with feedbacks and a corpus scheduler
             let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
+            let activate = self.use_snapshot.unwrap_or(false);
+            let snap = SnapshotModule::new();
+            let snap = IfModule::new(move || Ok(activate), tuple_list!(snap));
             // The wrapped harness function, calling out to the LLVM-style harness
             if self.use_cmplog.unwrap_or(false) {
                 let modules = {
@@ -245,6 +255,7 @@ where
                                 .build()
                                 .unwrap(),
                             CmpLogModule::default(),
+                            snap,
                         )
                     }
                     #[cfg(any(feature = "mips", feature = "hexagon"))]
@@ -380,11 +391,15 @@ where
                     }
                 }
             } else {
+                let activate = self.use_snapshot.unwrap_or(false);
+                let snap = SnapshotModule::new();
+                let snap = IfModule::new(move || Ok(activate), tuple_list!(snap));
                 let modules = tuple_list!(
                     StdEdgeCoverageModule::builder()
                         .map_observer(edges_observer.as_mut())
                         .build()
-                        .unwrap()
+                        .unwrap(),
+                    snap
                 );
 
                 let mut harness = |_emulator: &mut Emulator<_, _, _, _, _, _, _>,
@@ -549,6 +564,7 @@ pub mod pybind {
         tokens_file: Option<PathBuf>,
         timeout: Option<u64>,
         enable_stdout: Option<bool>,
+        use_snapshot: Option<bool>,
     }
 
     #[pymethods]
@@ -566,6 +582,7 @@ pub mod pybind {
             tokens_file=None,
             timeout=None,
             enable_stdout=None,
+            use_snapshot=None,
         ))]
         fn new(
             input_dirs: Vec<PathBuf>,
@@ -577,6 +594,7 @@ pub mod pybind {
             tokens_file: Option<PathBuf>,
             timeout: Option<u64>,
             enable_stdout: Option<bool>,
+            use_snapshot: Option<bool>,
         ) -> Self {
             Self {
                 input_dirs,
@@ -588,6 +606,7 @@ pub mod pybind {
                 tokens_file,
                 timeout,
                 enable_stdout,
+                use_snapshot,
             }
         }
 
@@ -612,6 +631,7 @@ pub mod pybind {
                 .tokens_file(self.tokens_file.clone())
                 .iterations(self.iterations)
                 .enable_stdout(self.enable_stdout)
+                .use_snapshot(self.use_snapshot)
                 .build()
                 .run(QemuSugarParameter::Qemu(&qemu.qemu));
         }

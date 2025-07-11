@@ -1,5 +1,3 @@
-use core::fmt::Debug;
-
 use libafl::{executors::ExitKind, observers::ObserversTuple};
 use libafl_bolts::tuples::{MatchFirstType, SplitBorrowExtractFirstType};
 
@@ -48,6 +46,9 @@ pub use logger::LoggerModule;
 
 pub mod utils;
 
+pub mod logic;
+pub use logic::IfModule;
+
 /// [`EmulatorModule`] is a trait designed to define modules that interact with the QEMU emulator
 /// during fuzzing. [`EmulatorModule`] provides a set of interfaces (hooks) that can be invoked at various stages
 /// of the fuzzer's execution.
@@ -84,7 +85,7 @@ pub mod utils;
 /// For more details on adding hooks to the **fuzzing target**, including function signatures,
 /// return values, please refer to the [`EmulatorModules`].
 // TODO remove 'static when specialization will be stable
-pub trait EmulatorModule<I, S>: 'static + Debug {
+pub trait EmulatorModule<I, S>: 'static {
     const HOOKS_DO_SIDE_EFFECTS: bool = true;
 
     /// Hook run **before** QEMU is initialized.
