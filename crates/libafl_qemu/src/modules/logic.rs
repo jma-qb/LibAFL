@@ -9,7 +9,7 @@ use crate::modules::EmulatorModule;
 /// If the closure returns true, the wrapped module will be used, else it will be skipped.
 #[derive(Debug)]
 pub struct IfModule<CB, MD> {
-    _closure: CB,
+    closure: CB,
     if_module: MD,
 }
 
@@ -19,7 +19,7 @@ impl<CB, MD> IfModule<CB, MD> {
     #[allow(dead_code)]
     pub fn new(closure: CB, module: MD) -> Self {
         Self {
-            _closure: closure,
+            closure,
             if_module: module,
         }
     }
@@ -41,10 +41,10 @@ where
     ) where
         ET: super::EmulatorModuleTuple<I, S>,
     {
-        //if (self.closure)(emulator_modules).unwrap_or(false) {
-        self.if_module
-            .pre_qemu_init_all(emulator_modules, qemu_params);
-        //}
+        if (self.closure)().unwrap_or(false) {
+            self.if_module
+                .pre_qemu_init_all(emulator_modules, qemu_params);
+        }
     }
 
     fn post_qemu_init<ET>(
@@ -54,9 +54,9 @@ where
     ) where
         ET: super::EmulatorModuleTuple<I, S>,
     {
-        //if (self.closure)().unwrap_or(false) {
-        self.if_module.post_qemu_init_all(qemu, emulator_modules);
-        // }
+        if (self.closure)().unwrap_or(false) {
+            self.if_module.post_qemu_init_all(qemu, emulator_modules);
+        }
     }
 
     fn first_exec<ET>(
@@ -67,9 +67,9 @@ where
     ) where
         ET: super::EmulatorModuleTuple<I, S>,
     {
-        //if (self.closure)().unwrap_or(false) {
-        self.if_module.first_exec_all(qemu, emulator_modules, state);
-        // }
+        if (self.closure)().unwrap_or(false) {
+            self.if_module.first_exec_all(qemu, emulator_modules, state);
+        }
     }
 
     fn pre_exec<ET>(
@@ -81,10 +81,10 @@ where
     ) where
         ET: super::EmulatorModuleTuple<I, S>,
     {
-        //if (self.closure)().unwrap_or(false) {
-        self.if_module
-            .pre_exec_all(qemu, emulator_modules, state, input);
-        // }
+        if (self.closure)().unwrap_or(false) {
+            self.if_module
+                .pre_exec_all(qemu, emulator_modules, state, input);
+        }
     }
 
     fn post_exec<OT, ET>(
@@ -99,10 +99,16 @@ where
         OT: libafl::observers::ObserversTuple<I, S>,
         ET: super::EmulatorModuleTuple<I, S>,
     {
-        //if (self.closure)().unwrap_or(false) {
-        self.if_module
-            .post_exec_all(qemu, emulator_modules, state, input, observers, exit_kind);
-        // }
+        if (self.closure)().unwrap_or(false) {
+            self.if_module.post_exec_all(
+                qemu,
+                emulator_modules,
+                state,
+                input,
+                observers,
+                exit_kind,
+            );
+        }
     }
 
     unsafe fn on_crash(&mut self) {
